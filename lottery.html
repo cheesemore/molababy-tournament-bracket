@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>签号抽奖</title>
+    <script src="lottery-config.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body::before {
+            content: ''; position: fixed; inset: 0;
+            background-color: rgba(255,255,255,0.65); z-index: -1;
+        }
+        .bg-white { background-color: rgba(255,255,255,0.97) !important; }
+        @media (max-width: 640px) { .section-card { padding: 1rem !important; } }
+    </style>
+</head>
+<body class="min-h-screen py-6 px-3 md:py-8 md:px-4 bg-gradient-to-br from-indigo-50 to-purple-50">
+    <div class="max-w-3xl mx-auto">
+        <div class="text-center mb-8">
+            <h1 id="pageTitle" class="text-3xl md:text-4xl font-bold text-indigo-900 mb-2">🎁 签号抽奖</h1>
+            <p class="text-gray-600 text-sm">相同随机数 → 相同结果</p>
+        </div>
+
+        <div id="loadError" class="hidden mb-6 bg-red-50 border border-red-200 text-red-800 rounded-xl p-4 text-sm"></div>
+
+        <!-- 1. 抽奖 -->
+        <div class="bg-white rounded-2xl shadow-xl p-6 md:p-8 mb-6 section-card">
+            <h2 class="text-lg font-bold text-gray-800 mb-4">🎲 抽奖</h2>
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">随机数种子</label>
+                    <input type="text" id="seedInput" class="w-full px-4 py-3 border border-gray-300 rounded-lg font-mono focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="留空则自动生成" disabled>
+                </div>
+                <div class="flex items-end">
+                    <button type="button" id="drawBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg" disabled>生成结果</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. 中奖名单 -->
+        <div id="resultSection" class="hidden mb-6">
+            <div class="bg-white rounded-2xl shadow-xl p-6 md:p-8 section-card">
+                <div class="flex flex-wrap justify-between items-center gap-2 mb-4">
+                    <h2 class="text-lg font-bold text-gray-800">✨ 中奖名单</h2>
+                    <span class="text-sm text-gray-500">种子 <span id="usedSeed" class="font-mono font-bold text-indigo-700"></span></span>
+                </div>
+                <ul id="resultList" class="space-y-2"></ul>
+                <button type="button" id="exportBtn" class="mt-6 bg-gray-800 hover:bg-gray-900 text-white text-sm font-bold py-2 px-4 rounded-lg">复制结果</button>
+            </div>
+        </div>
+
+        <!-- 3. 奖池 / 全部签号 -->
+        <div class="bg-white rounded-2xl shadow-xl p-6 md:p-8 mb-10 section-card">
+            <h2 class="text-lg font-bold text-gray-800 mb-2">📋 奖池情况</h2>
+            <p class="text-sm text-gray-500 mb-4" id="poolSummary">正在加载配置 …</p>
+            <div id="poolList" class="space-y-4"></div>
+        </div>
+    </div>
+
+    <script>
+        const DATA_FILE = 'lottery-data.json';
+        const CONFIG_JS = 'lottery-config.js';
+        const TIER_COLORS = {
+            '特等奖': 'text-red-600',
+            '一等奖': 'text-orange-600',
+            '二等奖': 'text-purple-600',
+            '三等奖': 'text-blue-600',
+            '四等奖': 'text-green-600'
+        };
+        const FALLBACK_COLORS = ['text-orange-600', 'text-purple-600', 'text-blue-600', 'text-green-600', 'text-red-600'];
+
+        let ROSTER = [];
+        let PRIZES = [];
+
+        function stringToSeed(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = ((hash << 5) - hash) + str.charCodeAt(i);
+                hash = hash & hash;
+            }
+            return Math.abs(hash);
+        }
+
+        function seededRandom(seed) {
+            let m = 0x80000000, a = 1103515245, c = 12345, state = seed;
+            return function() {
+                state = (a * state + c) % m;
+                return state / (m - 1);
+            };
+        }
+
+        function shuffleArray(array, seed) {
+            const random = seededRandom(seed);
+            const arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        function prizeColor(tier, index) {
+            return TIER_COLORS[tier] || FALLBACK_COLORS[index % FALLBACK_COLORS.length];
+        }
+
+        function normalizeConfig(raw) {
+            if (!raw || raw.version !== 1) {
+                throw new Error('配置文件 version 必须为 1');
+            }
+            if (!Array.isArray(raw.roster) || !raw.roster.length) {
+                throw new Error('roster 不能为空');
+            }
+            if (!Array.isArray(raw.prizes) || !raw.prizes.length) {
+                throw new Error('prizes 不能为空');
+            }
+
+            const roster = raw.roster.map((row, i) => {
+                const name = String(row.name || '').trim();
+                const count = Number(row.count);
+                if (!name) throw new Error(`roster 第 ${i + 1} 行：名字不能为空`);
+                if (!Number.isInteger(count) || count < 1) throw new Error(`roster 第 ${i + 1} 行：签数无效`);
+                return { name, count };
+            });
+
+            const seen = new Set();
+            roster.forEach(r => {
+                if (seen.has(r.name)) throw new Error(`重复名字：${r.name}`);
+                seen.add(r.name);
+            });
+
+            const prizes = raw.prizes.map((p, i) => {
+                const tier = String(p.tier || '').trim();
+                const name = String(p.name || '').trim();
+                const qty = Number(p.qty);
+                if (!tier) throw new Error(`prizes 第 ${i + 1} 行：档位不能为空`);
+                if (!name) throw new Error(`prizes 第 ${i + 1} 行：奖品名不能为空`);
+                if (!Number.isInteger(qty) || qty < 1) throw new Error(`prizes 第 ${i + 1} 行：数量无效`);
+                return { tier, name, qty, color: prizeColor(tier, i) };
+            });
+
+            return {
+                title: String(raw.title || '签号抽奖').trim() || '签号抽奖',
+                roster,
+                prizes
+            };
+        }
+
+        function expandTickets() {
+            const tickets = [];
+            ROSTER.forEach(row => {
+                for (let i = 1; i <= row.count; i++) {
+                    tickets.push({ label: `${row.name}-${i}`, person: row.name });
+                }
+            });
+            return tickets;
+        }
+
+        function expandPrizeSlots() {
+            const slots = [];
+            PRIZES.forEach(p => {
+                for (let i = 0; i < p.qty; i++) {
+                    slots.push({ tier: p.tier, name: p.name, color: p.color });
+                }
+            });
+            return slots;
+        }
+
+        function runDraw(seedStr) {
+            const seed = seedStr.trim() || (Date.now().toString() + Math.random().toString(36).slice(2, 8));
+            const pool = shuffleArray(expandTickets(), stringToSeed(seed));
+            const winners = [];
+            expandPrizeSlots().forEach(slot => {
+                const t = pool.shift();
+                if (!t) return;
+                winners.push({
+                    ticket: t.label,
+                    person: t.person,
+                    tier: slot.tier,
+                    prize: slot.name,
+                    color: slot.color
+                });
+            });
+            return { seed, winners };
+        }
+
+        function esc(s) {
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+        }
+
+        function prizeSummaryText() {
+            return PRIZES.map(p => `${p.tier} ${p.name} ×${p.qty}`).join('，');
+        }
+
+        function renderPool() {
+            const tickets = expandTickets();
+            const prizes = expandPrizeSlots();
+            document.getElementById('poolSummary').innerHTML =
+                `共 <b>${ROSTER.length}</b> 人 · <b>${tickets.length}</b> 签 · ` +
+                `<b>${prizes.length}</b> 个奖品（${esc(prizeSummaryText())}）`;
+
+            document.getElementById('poolList').innerHTML = ROSTER.map(row => {
+                const labels = [];
+                for (let i = 1; i <= row.count; i++) {
+                    labels.push(`${row.name}-${i}`);
+                }
+                return `
+                    <div class="border border-gray-100 rounded-lg p-3 bg-gray-50">
+                        <div class="text-sm font-bold text-gray-800 mb-2">${esc(row.name)} <span class="font-normal text-gray-500">（${row.count} 签）</span></div>
+                        <div class="flex flex-wrap gap-2">
+                            ${labels.map(l => `
+                                <span class="inline-block px-2.5 py-1 text-sm font-mono bg-white border border-gray-200 rounded text-gray-700">${esc(l)}</span>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderResults(result) {
+            document.getElementById('resultSection').classList.remove('hidden');
+            document.getElementById('usedSeed').textContent = result.seed;
+            document.getElementById('resultList').innerHTML = result.winners.map(w => `
+                <li class="flex flex-wrap items-baseline gap-x-2 py-2 px-3 rounded-lg bg-gray-50 border border-gray-100 text-base">
+                    <span class="font-bold text-gray-900">${esc(w.ticket)}</span>
+                    <span class="${w.color} font-medium">${esc(w.tier)}</span>
+                    <span class="text-gray-700">${esc(w.prize)}</span>
+                </li>
+            `).join('');
+            window._lastResult = result;
+        }
+
+        function exportText() {
+            if (!window._lastResult) return '';
+            const lines = [`种子：${window._lastResult.seed}`, ''];
+            window._lastResult.winners.forEach(w => {
+                lines.push(`${w.ticket} ${w.tier} ${w.prize}`);
+            });
+            return lines.join('\n');
+        }
+
+        function applyConfig(raw) {
+            const cfg = normalizeConfig(raw);
+            ROSTER = cfg.roster;
+            PRIZES = cfg.prizes;
+            document.getElementById('pageTitle').textContent = '🎁 ' + cfg.title;
+            document.title = cfg.title;
+            document.getElementById('loadError').classList.add('hidden');
+            renderPool();
+            enableDraw();
+        }
+
+        function showLoadError(msg) {
+            const el = document.getElementById('loadError');
+            el.classList.remove('hidden');
+            const localHint = location.protocol === 'file:'
+                ? '当前是本地文件打开，请确保同目录有 lottery-config.js；或用 GitHub Pages 地址访问。'
+                : '请确认仓库里已提交 lottery-config.js 和 lottery-data.json。';
+            el.innerHTML = `<strong>无法加载抽奖配置</strong><br>${esc(msg)}<br><span class="text-gray-600">${localHint}</span>`;
+            document.getElementById('poolSummary').textContent = '配置未加载';
+        }
+
+        function enableDraw() {
+            document.getElementById('seedInput').disabled = false;
+            document.getElementById('drawBtn').disabled = false;
+        }
+
+        async function loadConfig() {
+            if (window.LOTTERY_CONFIG) {
+                try {
+                    applyConfig(window.LOTTERY_CONFIG);
+                    return;
+                } catch (e) {
+                    showLoadError(e.message || String(e));
+                    return;
+                }
+            }
+            try {
+                const res = await fetch(DATA_FILE, { cache: 'no-store' });
+                if (!res.ok) throw new Error(`${DATA_FILE} HTTP ${res.status}`);
+                applyConfig(await res.json());
+            } catch (e) {
+                showLoadError(`${e.message || e}（文件名是 lottery-data.json，中间是短横线 - 不是下划线 _）`);
+            }
+        }
+
+        document.getElementById('drawBtn').addEventListener('click', () => {
+            let seed = document.getElementById('seedInput').value;
+            if (!seed.trim()) {
+                seed = Date.now().toString() + Math.random().toString(36).slice(2, 8);
+                document.getElementById('seedInput').value = seed;
+            }
+            renderResults(runDraw(seed));
+        });
+
+        document.getElementById('exportBtn').addEventListener('click', async () => {
+            const text = exportText();
+            try {
+                await navigator.clipboard.writeText(text);
+                alert('已复制');
+            } catch (e) {
+                prompt('复制：', text);
+            }
+        });
+
+        loadConfig();
+    </script>
+</body>
+</html>

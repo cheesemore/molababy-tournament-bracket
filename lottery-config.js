@@ -1,0 +1,30 @@
+// 由 lottery-editor 自动生成，网页直接读取；编辑请改 lottery-data.json 后重新保存
+window.LOTTERY_CONFIG = {
+  "version": 1,
+  "title": "签号抽奖",
+  "roster": [
+    { "name": "王林", "count": 2 },
+    { "name": "小书童", "count": 2 },
+    { "name": "小王", "count": 1 },
+    { "name": "P哥", "count": 12 },
+    { "name": "灯总", "count": 12 },
+    { "name": "涛", "count": 2 },
+    { "name": "爱钉子", "count": 1 },
+    { "name": "爱佳蓝莓", "count": 1 },
+    { "name": "漠漠", "count": 10 },
+    { "name": "光与影", "count": 1 },
+    { "name": "天才", "count": 1 },
+    { "name": "风帆", "count": 10 },
+    { "name": "秋暮", "count": 2 },
+    { "name": "豪哥", "count": 12 },
+    { "name": "皓月", "count": 1 },
+    { "name": "吃亏是福", "count": 1 },
+    { "name": "佛爷", "count": 1 },
+    { "name": "大冰箱", "count": 10 },
+    { "name": "阿炮", "count": 1 }
+  ],
+  "prizes": [
+    { "tier": "一等奖", "name": "狮子", "qty": 5 },
+    { "tier": "二等奖", "name": "蛇", "qty": 5 }
+  ]
+};

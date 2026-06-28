@@ -1,757 +1,893 @@
-
-<把上面的完整代码，替换掉计分逻辑部分，修改后如下：
->
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>青灯杯争霸赛对阵图生成器</title>
+    <title>99级争霸赛对阵系统</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        .match-card { transition: all 0.2s ease; }
+        .match-card:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .bracket-round { display: flex; flex-direction: column; gap: 0.5rem; width: 100%; }
+        .matches-wrapper { display: flex; flex-wrap: wrap; gap: 0.75rem; width: 100%; }
         .match-card {
-            transition: all 0.2s ease;
+            width: calc(25% - 0.6rem); min-width: 200px; flex-shrink: 0;
+            padding: 0.75rem !important; font-size: 0.85rem;
         }
-        .match-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
-        .bracket-round {
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start;
-            gap: 0.5rem;
-            width: 100%;
-        }
-        .bracket-round h3 {
-            font-size: 1rem;
-            margin-bottom: 0.5rem;
-            padding: 0.5rem !important;
-            border-radius: 0.5rem;
-        }
-        /* 同轮次比赛横向排列自动换行 */
-        .matches-wrapper {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.75rem;
-            width: 100%;
-        }
-        .match-card {
-            width: calc(25% - 0.6rem); /* 每行默认放4场比赛 */
-            min-width: 200px;
-            flex-shrink: 0;
-            padding: 0.75rem !important;
-            margin-bottom: 0 !important;
-            font-size: 0.85rem;
-        }
-        .match-card > div {
-            padding-top: 0.35rem !important;
-            padding-bottom: 0.35rem !important;
-        }
-        .match-card button {
-            padding: 0.25rem 0.25rem !important;
-            font-size: 0.75rem !important;
-        }
-        .match-card .vs-text {
-            font-size: 0.75rem !important;
-            padding: 0 !important;
-        }
-        /* 移动端适配每行放2场 */
-        @media (max-width: 768px) {
-            .match-card {
-                width: calc(50% - 0.4rem);
-                min-width: auto;
-            }
-        }
-        .winner-text {
-            font-weight: bold;
-            color: #16a34a;
-            text-decoration: none !important;
-        }
-        .loser-text {
-            text-decoration: line-through;
-            color: #6b7280;
-        }
+        @media (max-width: 768px) { .match-card { width: calc(50% - 0.4rem); min-width: auto; } }
+        .winner-text { font-weight: bold; color: #16a34a; }
+        .loser-text { text-decoration: line-through; color: #6b7280; }
         body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(255, 255, 255, 0.6);
-            z-index: -1;
+            content: ''; position: fixed; inset: 0;
+            background-color: rgba(255,255,255,0.6); z-index: -1;
         }
-        .bg-white {
-            background-color: rgba(255, 255, 255, 0.95) !important;
-        }
-        .bg-yellow-50 {
-            background-color: rgba(254, 252, 232, 0.95) !important;
-        }
-        .bg-blue-50 {
-            background-color: rgba(239, 246, 255, 0.95) !important;
-        }
-        .bg-gradient-to-br {
-            background-image: none !important;
-        }
+        .bg-white { background-color: rgba(255,255,255,0.95) !important; }
+        .bg-yellow-50 { background-color: rgba(254,252,232,0.95) !important; }
+        .bg-blue-50 { background-color: rgba(239,246,255,0.95) !important; }
+        .bg-gradient-to-br { background-image: none !important; }
     </style>
-    <!-- Open Graph核心标签（微信预览用） -->
-    <meta property="og:type" content="website">
-    <meta property="og:title" content="青灯杯争霸赛对阵图生成器">
-    <meta property="og:description" content="24支队伍可验证公平随机对阵生成，Fisher-Yates洗牌算法，结果可复现，无人工干预">
-    <meta property="og:url" content="https://cheesemore.github.io/molababy-tournament-bracket/">
-    <meta property="og:image" content="https://cheesemore.github.io/molababy-tournament-bracket/share.jpg">
-    <!-- 微信兼容标签 -->
-    <meta property="wx:title" content="青灯杯争霸赛对阵图生成器">
-    <meta property="wx:description" content="24支队伍可验证公平随机对阵生成，Fisher-Yates洗牌算法，结果可复现，无人工干预">
-    <meta property="wx:image" content="https://cheesemore.github.io/molababy-tournament-bracket/share.jpg">
-    <!-- Twitter兼容标签 -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="青灯杯争霸赛对阵图生成器">
-    <meta name="twitter:description" content="24支队伍可验证公平随机对阵生成，Fisher-Yates洗牌算法，结果可复现，无人工干预">
-    <meta name="twitter:image" content="https://cheesemore.github.io/molababy-tournament-bracket/share.jpg">
-    <!-- Favicon图标 -->
-    <link rel="icon" href="/favicon.png" type="image/png">
+    <link rel="icon" href="favicon.png" type="image/png">
 </head>
 <body class="bg-fixed bg-center bg-cover min-h-screen py-8 px-4" style="background-image: url('bg.png');">
-    <div class="max-w-[95%] mx-auto max-w-8xl">
-        <!-- 头部 -->
+    <div class="max-w-[95%] mx-auto">
         <div class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-blue-800 mb-3">🏆 青灯杯争霸赛对阵图生成器</h1>
-            <p class="text-gray-600 text-lg">基于SHA256哈希可验证、公平Fisher-Yates随机洗牌，24支队伍公平对阵生成</p>
-            <div class="mt-2 text-sm text-gray-500">V2.2.0 测试版</div>
+            <h1 class="text-4xl font-bold text-blue-800 mb-3">🏆 99级争霸赛对阵系统</h1>
+            <p class="text-gray-600 text-lg">12支队伍 · 小组循环 → 四强循环 · 种子可复现</p>
+            <div class="mt-2 text-sm text-gray-500">V3.0.0</div>
         </div>
 
-        <!-- 操作区 -->
+        <div class="bg-white rounded-2xl shadow-xl p-8 mb-10" id="rosterSection">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">📋 正式参赛名单（12支）</h2>
+            <p class="text-sm text-gray-500 mb-4">队名取自报名表「角色1 / 参赛角色1」</p>
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2" id="rosterList"></div>
+        </div>
+
         <div class="bg-white rounded-2xl shadow-xl p-8 mb-10">
             <div class="grid md:grid-cols-2 gap-6">
                 <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-2">🔑 输入哈希种子（相同种子生成完全相同的对阵）</label>
-                    <input type="text" id="hashSeed" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono" placeholder="输入任意哈希值/字符串，留空则自动随机生成">
+                    <label class="block text-sm font-bold text-gray-700 mb-2">🔑 哈希种子（相同种子 → 相同分组）</label>
+                    <input type="text" id="hashSeed" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono" placeholder="留空则自动生成">
                 </div>
-                <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-2">🎲 半决赛对阵规则（比赛开始后无法修改）</label>
-                    <div class="flex flex-col gap-2 mt-2">
-                        <label class="flex items-center gap-1 cursor-pointer">
-                            <input type="radio" name="semiMatchMethod" value="random" checked class="w-4 h-4 text-blue-600">
-                            <span>随机选1名胜者组对阵败者组（默认）</span>
-                        </label>
-                        <label class="flex items-center gap-1 cursor-pointer">
-                            <input type="radio" name="semiMatchMethod" value="smallest" class="w-4 h-4 text-blue-600">
-                            <span>序号最小的胜者组对阵败者组</span>
-                        </label>
-                    </div>
-                    <div class="flex items-end mt-4">
-                        <button id="generateBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-all">🎲 生成随机对阵</button>
-                    </div>
+                <div class="flex items-end">
+                    <button id="generateBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">🎲 生成随机分组</button>
                 </div>
-            </div>
-            <div class="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p class="text-sm text-yellow-700">💡 提示：使用相同的哈希种子每次都会生成完全一致的对阵分配，可复现、不可篡改，符合区块链抽签逻辑</p>
             </div>
         </div>
 
-        <!-- 队伍列表 -->
+        <div class="bg-white rounded-2xl shadow-xl p-8 mb-10 hidden" id="adminSection">
+            <details open class="group">
+                <summary class="text-xl font-bold text-gray-800 cursor-pointer list-none flex items-center gap-2">
+                    <span>🔧 办赛容错工具</span>
+                    <span class="text-sm font-normal text-gray-500">（不影响赛程推进，仅修正显示/兑奖分）</span>
+                </summary>
+                <div class="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 mb-4">
+                    赛程晋级仍由比赛结果决定。「补偿分」只叠加在名单显示与兑奖统计上；撤销场次仅清除该场结果并重算<b>赛程分</b>，不会自动回退已生成的下一轮。
+                </div>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="space-y-3">
+                        <h4 class="font-bold text-gray-700">补分 / 改补偿分</h4>
+                        <select id="adminTeamSelect" class="w-full px-3 py-2 border rounded-lg"></select>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-xs text-gray-600">预选补偿分</label>
+                                <input type="number" id="adminPrelimBonus" class="w-full px-3 py-2 border rounded-lg" value="0">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-600">决赛补偿分</label>
+                                <input type="number" id="adminFinalBonus" class="w-full px-3 py-2 border rounded-lg" value="0">
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" id="adminApplyBonusBtn" class="bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold py-2 px-3 rounded-lg">保存补偿分</button>
+                            <button type="button" id="adminPrelimPlus1" class="bg-gray-200 hover:bg-gray-300 text-sm py-2 px-3 rounded-lg">预选 +1</button>
+                            <button type="button" id="adminPrelimMinus1" class="bg-gray-200 hover:bg-gray-300 text-sm py-2 px-3 rounded-lg">预选 −1</button>
+                            <button type="button" id="adminFinalPlus1" class="bg-gray-200 hover:bg-gray-300 text-sm py-2 px-3 rounded-lg">决赛 +1</button>
+                            <button type="button" id="adminFinalMinus1" class="bg-gray-200 hover:bg-gray-300 text-sm py-2 px-3 rounded-lg">决赛 −1</button>
+                        </div>
+                        <input type="text" id="adminBonusNote" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="备注（可选）">
+                    </div>
+                    <div class="space-y-3">
+                        <h4 class="font-bold text-gray-700">撤销 / 重算</h4>
+                        <select id="adminMatchSelect" class="w-full px-3 py-2 border rounded-lg text-sm"></select>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" id="adminUndoMatchBtn" class="bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-2 px-3 rounded-lg">撤销所选场次</button>
+                            <button type="button" id="adminRecalcBtn" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-2 px-3 rounded-lg">从记录重算赛程分</button>
+                            <button type="button" id="adminClearBonusBtn" class="bg-gray-500 hover:bg-gray-600 text-white text-sm font-bold py-2 px-3 rounded-lg">清空全部补偿分</button>
+                        </div>
+                        <div id="adminLog" class="text-xs text-gray-600 bg-gray-50 p-3 rounded-lg max-h-32 overflow-y-auto"></div>
+                    </div>
+                </div>
+            </details>
+        </div>
+
         <div class="bg-white rounded-2xl shadow-xl p-8 mb-10 hidden" id="teamListSection">
-            <h2 id="teamListTitle" class="text-2xl font-bold text-gray-800 mb-6">📋 参赛队伍列表（共24支）</h2>
-            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3" id="teamList">
-                <!-- 动态生成队伍 -->
-            </div>
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">📋 参赛队伍</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3" id="teamList"></div>
         </div>
 
-        <!-- 随机对阵结果区 -->
-        <div class="bg-white rounded-2xl shadow-xl p-8 mb-10 hidden" id="resultSection">
-            <h2 class="text-2xl font-bold text-gray-800 mb-6">🎫 队伍随机编号分配结果</h2>
-            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3" id="numList">
-                <!-- 动态生成编号对应列表 -->
-            </div>
-        </div>
-
-        <!-- 赛事对阵流程区 -->
         <div class="bg-white rounded-2xl shadow-xl p-8 mb-10 hidden" id="tournamentSection">
-            <h2 class="text-2xl font-bold text-gray-800 mb-6">⚔️ 赛事对阵流程</h2>
-            <div class="flex flex-col gap-6 w-full" id="roundsContainer">
-                <!-- 动态生成每一轮的对阵，从上向下扩展 -->
-            </div>
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">⚔️ 赛程</h2>
+            <div id="phaseLabel" class="text-lg font-bold text-blue-700 mb-4"></div>
+            <div class="flex flex-col gap-6" id="roundsContainer"></div>
         </div>
 
-        <!-- 冠军展示区 -->
-        <div class="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-2xl shadow-xl p-8 text-center hidden" id="finalChampionSection">
-            <div class="text-6xl mb-4">👑</div>
-            <h2 class="text-3xl font-bold text-orange-800 mb-2">青灯杯争霸赛 冠军</h2>
-            <div class="text-2xl font-bold text-orange-700 mb-2" id="finalChampionName">-</div>
-            <div class="text-xl text-gray-600">总积分：<span id="finalChampionScore">0</span></div>
+        <div class="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-2xl shadow-xl p-8 text-center hidden" id="finalRankSection">
+            <div class="text-6xl mb-4">🏅</div>
+            <h2 class="text-3xl font-bold text-orange-800 mb-6">最终排名</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto" id="finalRankList"></div>
         </div>
 
-        <!-- 规则说明 -->
         <div class="bg-white rounded-2xl shadow-xl p-6 mb-10">
-            <h3 class="text-xl font-bold text-gray-800 mb-4">📝 赛事规则说明</h3>
-            <ul class="list-disc list-inside space-y-2 text-gray-700">
-                <li>采用Fisher-Yates洗牌算法，保证每个对阵分配概率完全均匀</li>
-                <li>随机种子支持自定义，相同种子永远生成完全相同的对阵顺序，结果可复现、可验证，杜绝黑幕</li>
-                <li>底层采用标准SHA256哈希算法驱动随机数生成，符合区块链可验证随机数规范</li>
-                <li>24支队伍对阵分配完全公平，无任何人工干预可能</li>
-                <li><b>对阵规则：</b>首轮按1v2,3v4...连续编号配对，胜者进胜者组，败者进败者组；胜者组第二轮6进3后，败者组单独完赛决出1人，总共4人进入单败半决赛</li>
-                <li><b>积分规则：</b>胜者组胜利+3分/失败+1分；败者组胜利+2分/失败淘汰；半决赛BO3每赢一场+2分/每输一场+1分；决赛BO3每赢一场+3分/每输一场+2分</li>
-                <li><b>赛制说明：</b>前半段双败淘汰，6进3后改为单败淘汰，半决赛4进2，决赛决出冠军</li>
+            <h3 class="text-xl font-bold text-gray-800 mb-4">📝 99比赛规则</h3>
+            <h4 class="font-bold text-gray-700 mt-4 mb-2">报名要求</h4>
+            <ul class="list-disc list-inside space-y-1 text-gray-700 text-sm">
+                <li>报名角色99级且必须3转、亮称号，参赛职业不可重复</li>
+                <li>宠物限制最高104级</li>
+                <li>微信与角色名绑定，禁止多开</li>
+                <li>禁止挂机、禁止使用血瓶、禁止使用封印卡等道具，违者视为弃权</li>
+                <li>规定时间未到场视为弃权</li>
+            </ul>
+            <h4 class="font-bold text-gray-700 mt-4 mb-2">赛制</h4>
+            <ul class="list-disc list-inside space-y-1 text-gray-700 text-sm">
+                <li>12支队伍随机分为3个小组，每组4队循环赛，BO3胜1分负0分</li>
+                <li>小组积分第1直接进四强；3个小组第2循环加赛（不计分），胜者占第4个四强名额</li>
+                <li>同分参照世界杯小组出线：相互战绩 → 相互小分（BO3赢局数）→ 仍平则加赛BO3（加赛不计分），直到分出先后</li>
+                <li>四强阶段积分清零重新计；6场循环BO3，胜1分负0分，按积分排1～4名，同分规则同上</li>
+                <li>预选赛积分保留用于赛后兑换奖励；办赛方可通过容错工具添加<b>补偿分</b>（不影响晋级，仅影响兑奖显示）</li>
             </ul>
         </div>
     </div>
 
     <script>
-        // 24支队伍数据
-        const teams = [
-            "光与影的回忆", "晴朗·传教", "凌晨", "五六七", "入我梦中来", "义薄云天",
-            "靓仔·豆包", "神™轩辕", "王林1", "佛爷1", "墨灬浅", "大彩电",
-            "★", "泡", "通辽李先生1", "喵喵1", "栩哥 巫师", "ゞ。朝花夕拾",
-            "岁月如歌", "抠脚大汉", "小书童1", "云坚雨", "大老粗", "阿卡曼1"
+        const TEAM_NAMES = [
+            "69我第一", "流氓大巫师", "打工人16", "呆呆♀罗宾",
+            "孤独的东幽", "幽灵...琴司", "幽宜◇索隆", "无忧",
+            "靓仔南", "迷人◇卡纳", "依恋①", "晚风"
         ];
-        const drawBtn = document.getElementById('generateBtn');
-        let isDrawing = false;
-        let hasDrawn = false;
-        // 赛事全局状态
-        let teamsMap = {}; // 编号→{name: 队名, score: 积分, eliminated: 是否淘汰}
-        let allRounds = []; // 所有轮次数据：[{name: 轮次名, type: 类型, matches: [对阵列表]}]
-        let loserPool = []; // 待进入败者组的队伍
-        let globalSeed = 0; // 全局初始种子，用于生成每一轮的衍生种子
-        let semiMatchMethod = 'random'; // 半决赛对阵规则：random随机选胜者组对阵败者组，smallest最小序号对阵
-        let tournamentStarted = false; // 比赛是否已经开始，开始后规则无法修改
+        const GROUP_KEYS = ['A', 'B', 'C'];
 
-        // 基于字符串生成随机种子的伪随机数生成器
+        let teamsMap = {};
+        let groups = {};
+        let phase = 'idle';
+        let secondPlayoff = { teamNums: [], matches: [], tiebreakRounds: [] };
+        let finalStage = { teamNums: [], matches: [], tiebreakRounds: [] };
+        let globalSeed = 0;
+
         function stringToSeed(str) {
             let hash = 0;
-            if (str.length === 0) return hash;
             for (let i = 0; i < str.length; i++) {
-                const char = str.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash = hash & hash; // 转成32位整数
+                hash = ((hash << 5) - hash) + str.charCodeAt(i);
+                hash = hash & hash;
             }
             return Math.abs(hash);
         }
 
-        // 带种子的随机数生成器
         function seededRandom(seed) {
-            let m = 0x80000000; // 2^31
-            let a = 1103515245;
-            let c = 12345;
-            let state = seed;
+            let m = 0x80000000, a = 1103515245, c = 12345, state = seed;
             return function() {
                 state = (a * state + c) % m;
                 return state / (m - 1);
             };
         }
 
-        // Fisher-Yates 洗牌算法，带种子
         function shuffleArray(array, seed) {
             const random = seededRandom(seed);
-            const newArray = [...array];
-            for (let i = newArray.length - 1; i > 0; i--) {
+            const arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
                 const j = Math.floor(random() * (i + 1));
-                [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+                [arr[i], arr[j]] = [arr[j], arr[i]];
             }
-            return newArray;
+            return arr;
         }
 
-        // 渲染带积分的队伍列表
-        function renderTeamListWithScore() {
-            const container = document.getElementById('teamList');
-            container.innerHTML = '';
-            // 按积分从高到低排序，同积分按编号升序
-            const sortedTeams = Object.entries(teamsMap).sort((a,b) => {
-                if (b[1].score !== a[1].score) {
-                    return b[1].score - a[1].score;
-                }
-                return parseInt(a[0]) - parseInt(b[0]);
-            });
-            sortedTeams.forEach(([num, team]) => {
-                const div = document.createElement('div');
-                div.className = `p-3 rounded-lg border text-center ${team.eliminated ? 'bg-gray-50 border-gray-200 opacity-75' : 'bg-blue-50 border-blue-200'}`;
-                div.innerHTML = `<span class="font-medium">${team.name}</span><br><span class="text-sm text-gray-600">积分: ${team.score}</span>`;
-                container.appendChild(div);
-            });
-            // 更新总积分
-            const totalScore = Object.values(teamsMap).reduce((sum, team) => sum + team.score, 0);
-            document.getElementById('teamListTitle').innerText = `📋 参赛队伍列表（共24支）| 总分: ${totalScore}分`;
-            // 如果赛事结束，显示冠军区
-            const aliveTeams = Object.values(teamsMap).filter(t => !t.eliminated).length;
-            if (aliveTeams === 1) {
-                const champion = Object.values(teamsMap).find(t => !t.eliminated);
-                document.getElementById('finalChampionName').textContent = champion.name;
-                document.getElementById('finalChampionScore').textContent = champion.score;
-                document.getElementById('finalChampionSection').classList.remove('hidden');
-            } else {
-                document.getElementById('finalChampionSection').classList.add('hidden');
-            }
+        function displayPrelim(t) { return t.prelimMatchPts + t.prelimBonus; }
+        function displayFinal(t) { return t.finalMatchPts + t.finalBonus; }
+
+        function scoreDetail(t, type) {
+            const matchPts = type === 'prelim' ? t.prelimMatchPts : t.finalMatchPts;
+            const bonus = type === 'prelim' ? t.prelimBonus : t.finalBonus;
+            const total = matchPts + bonus;
+            if (bonus === 0) return `${total}`;
+            return `${total}<span class="text-xs text-gray-500">(${matchPts}+补${bonus})</span>`;
         }
 
-        // 生成下一轮对阵
-        function generateNextRound() {
-            // 检查是不是已经到决赛了
-            const hasFinal = allRounds.some(r => r.type === "决赛");
-            if (hasFinal) return false;
+        function adminLog(msg) {
+            const el = document.getElementById('adminLog');
+            if (!el) return;
+            const line = document.createElement('div');
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            el.prepend(line);
+        }
 
-            // ========== 半决赛/决赛阶段逻辑 ==========
-            const semiRound = allRounds.find(r => r.type === "半决赛");
-            if (semiRound) {
-                // 检查半决赛是否全部打完
-                const semiAllFinished = semiRound.matches.every(m => m.winner !== null || m.team2 === null);
-                if (semiAllFinished) {
-                    // 半决赛打完，生成决赛
-                    const semiWinners = semiRound.matches.map(m => m.winner);
-                    allRounds.push({
-                        name: "决赛 BO3",
-                        type: "决赛",
-                        matches: [{
-                            team1: semiWinners[0],
-                            team2: semiWinners[1],
-                            winner: null,
-                            type: "决赛"
-                        }]
-                    });
-                    return true;
-                }
-                // 半决赛没打完，不生成其他轮次
-                return false;
-            }
-
-            // 收集最新一轮的胜者组和败者组
-            const winnerRounds = allRounds.filter(r => r.type === "胜者组" || r.type === "首轮");
-            const loserRounds = allRounds.filter(r => r.type === "败者组");
-            const latestWinnerRound = winnerRounds[winnerRounds.length - 1];
-            const latestLoserRound = loserRounds[loserRounds.length - 1];
-            // 胜者组胜者
-            const winnerWinners = latestWinnerRound.matches.map(m => m.team2 === null ? m.team1 : m.winner);
-            // 败者组胜者
-            let loserWinners = [];
-            if (latestLoserRound) {
-                loserWinners = latestLoserRound.matches.map(m => m.team2 === null ? m.team1 : m.winner);
-            }
-            // 合并败者组胜者和败者池，作为下一轮败者组参赛队伍
-            const nextLoserTeams = [...loserWinners, ...loserPool].sort((a,b) => a - b);
-            loserPool = []; // 清空败者池
-            // 生成下一轮胜者组对阵
-            const sortedWinners = winnerWinners.sort((a,b) => a - b);
-
-            // ========== 新赛制逻辑 ==========
-            // 1. 胜者组第二轮打完（3人晋级）：接下来先单独打完败者组所有比赛，直到剩1人
-            if (sortedWinners.length === 3 && nextLoserTeams.length > 1) {
-                // 只生成败者组下一轮，不生成胜者组比赛
-                const loserRoundNum = loserRounds.length + 1;
-                const nextLoserMatches = [];
-                // 处理轮空：用衍生种子随机选择轮空队伍，保证可复现
-                if (nextLoserTeams.length % 2 !== 0) {
-                    let byeIndex = 0;
-                    if (semiMatchMethod === "random") {
-                        // 随机轮空：用衍生种子生成随机索引
-                        const roundSeed = stringToSeed(`${globalSeed}${loserRoundNum}loser`);
-                        const random = seededRandom(roundSeed);
-                        byeIndex = Math.floor(random() * nextLoserTeams.length) % nextLoserTeams.length;
-                    }
-                    // 序号最小轮空：默认取index 0，因为nextLoserTeams已经按序号从小到大排序
-                    const byeTeam = nextLoserTeams.splice(byeIndex, 1)[0];
-                    // 轮空不计分
-                    nextLoserMatches.push({
-                        team1: byeTeam,
-                        team2: null,
-                        winner: byeTeam,
-                        type: "轮空"
-                    });
-                }
-                // 剩下的偶数个队伍两两配对
-                let j = 0;
-                for (; j < nextLoserTeams.length; j += 2) {
-                    nextLoserMatches.push({
-                        team1: nextLoserTeams[j],
-                        team2: nextLoserTeams[j+1],
-                        winner: null,
-                        type: "败者组"
-                    });
-                }
-                // 败者组轮次名称
-                const loserRoundName = `败者组第${loserRoundNum}轮 ${nextLoserTeams.length}进${Math.ceil(nextLoserTeams.length/2)}`;
-                allRounds.push({
-                    name: loserRoundName,
-                    type: "败者组",
-                    matches: nextLoserMatches
+        function recalcMatchScores() {
+            Object.values(teamsMap).forEach(t => {
+                t.prelimMatchPts = 0;
+                t.finalMatchPts = 0;
+            });
+            function apply(list) {
+                list.forEach(m => {
+                    if (m.winner === null || !m.countsForScore) return;
+                    if (m.phase.startsWith('group')) teamsMap[m.winner].prelimMatchPts += 1;
+                    else if (m.phase === 'final') teamsMap[m.winner].finalMatchPts += 1;
                 });
-                return true;
             }
-            // 2. 败者组打完只剩1人：生成4人半决赛对阵
-            if (sortedWinners.length === 3 && nextLoserTeams.length === 1) {
-                const loserChampion = nextLoserTeams[0];
-                // 从3名胜者组选1人对阵败者组冠军
-                let matchLoserIndex = 0;
-                if (semiMatchMethod === "random") {
-                    // 随机选：用衍生种子生成随机索引，可复现
-                    const roundSeed = stringToSeed(`${globalSeed}semimatch`);
-                    const random = seededRandom(roundSeed);
-                    matchLoserIndex = Math.floor(random() * sortedWinners.length) % sortedWinners.length;
+            GROUP_KEYS.forEach(k => {
+                apply(groups[k].matches);
+            });
+            apply(secondPlayoff.matches);
+            apply(finalStage.matches);
+        }
+
+        function collectAllMatches() {
+            const list = [];
+            GROUP_KEYS.forEach(k => {
+                groups[k].matches.forEach((m, i) => {
+                    if (m.winner !== null) list.push({ match: m, label: `${k}组 第${i + 1}场 ${teamLabel(m.team1)} vs ${teamLabel(m.team2)}` });
+                });
+                groups[k].tiebreakRounds.forEach((round, ri) => {
+                    round.forEach((m, i) => {
+                        if (m.winner !== null) list.push({ match: m, label: `${k}组加赛${ri + 1}-${i + 1} ${teamLabel(m.team1)} vs ${teamLabel(m.team2)}` });
+                    });
+                });
+            });
+            secondPlayoff.matches.forEach((m, i) => {
+                if (m.winner !== null) list.push({ match: m, label: `小组第2加赛 第${i + 1}场 ${teamLabel(m.team1)} vs ${teamLabel(m.team2)}` });
+            });
+            secondPlayoff.tiebreakRounds.forEach((round, ri) => {
+                round.forEach((m, i) => {
+                    if (m.winner !== null) list.push({ match: m, label: `小组第2加赛TB${ri + 1}-${i + 1} ${teamLabel(m.team1)} vs ${teamLabel(m.team2)}` });
+                });
+            });
+            finalStage.matches.forEach((m, i) => {
+                if (m.winner !== null) list.push({ match: m, label: `四强 第${i + 1}场 ${teamLabel(m.team1)} vs ${teamLabel(m.team2)}` });
+            });
+            finalStage.tiebreakRounds.forEach((round, ri) => {
+                round.forEach((m, i) => {
+                    if (m.winner !== null) list.push({ match: m, label: `四强加赛${ri + 1}-${i + 1} ${teamLabel(m.team1)} vs ${teamLabel(m.team2)}` });
+                });
+            });
+            return list;
+        }
+
+        function renderAdminPanel() {
+            if (phase === 'idle') return;
+
+            const teamSel = document.getElementById('adminTeamSelect');
+            teamSel.innerHTML = '';
+            Object.keys(teamsMap).map(Number).sort((a, b) => a - b).forEach(num => {
+                const opt = document.createElement('option');
+                opt.value = num;
+                opt.textContent = `${num}号 ${teamsMap[num].name}`;
+                teamSel.appendChild(opt);
+            });
+            syncAdminBonusInputs();
+
+            const matchSel = document.getElementById('adminMatchSelect');
+            const finished = collectAllMatches();
+            matchSel.innerHTML = finished.length
+                ? finished.map((item, i) => `<option value="${i}">${item.label} → ${teamLabel(item.match.winner)} 胜</option>`).join('')
+                : '<option value="">暂无已完成场次</option>';
+            matchSel.dataset.count = finished.length;
+            window._adminFinishedMatches = finished;
+        }
+
+        function syncAdminBonusInputs() {
+            const num = parseInt(document.getElementById('adminTeamSelect').value);
+            if (!teamsMap[num]) return;
+            const t = teamsMap[num];
+            document.getElementById('adminPrelimBonus').value = t.prelimBonus;
+            document.getElementById('adminFinalBonus').value = t.finalBonus;
+        }
+
+        function applyBonusToSelected() {
+            const num = parseInt(document.getElementById('adminTeamSelect').value);
+            if (!teamsMap[num]) return;
+            const t = teamsMap[num];
+            t.prelimBonus = parseInt(document.getElementById('adminPrelimBonus').value) || 0;
+            t.finalBonus = parseInt(document.getElementById('adminFinalBonus').value) || 0;
+            const note = document.getElementById('adminBonusNote').value.trim();
+            adminLog(`已设置 ${t.name}：预选补偿 ${t.prelimBonus}，决赛补偿 ${t.finalBonus}${note ? '（' + note + '）' : ''}`);
+            renderAll();
+        }
+
+        function adjustBonus(deltaPrelim, deltaFinal) {
+            const num = parseInt(document.getElementById('adminTeamSelect').value);
+            if (!teamsMap[num]) return;
+            teamsMap[num].prelimBonus += deltaPrelim;
+            teamsMap[num].finalBonus += deltaFinal;
+            syncAdminBonusInputs();
+            adminLog(`${teamsMap[num].name} 补偿分调整：预选 ${deltaPrelim >= 0 ? '+' : ''}${deltaPrelim}，决赛 ${deltaFinal >= 0 ? '+' : ''}${deltaFinal}`);
+            renderAll();
+        }
+
+        function renderRosterStatic() {
+            document.getElementById('rosterList').innerHTML = TEAM_NAMES.map((name, i) =>
+                `<div class="p-3 bg-gray-50 border border-gray-200 rounded-lg text-center text-sm font-medium">${i + 1}. ${name}</div>`
+            ).join('');
+        }
+
+        function clearAllBonus() {
+            if (!confirm('确定清空全部队伍的补偿分？')) return;
+            Object.values(teamsMap).forEach(t => { t.prelimBonus = 0; t.finalBonus = 0; });
+            adminLog('已清空全部补偿分');
+            renderAll();
+        }
+        function undoSelectedMatch() {
+            const finished = window._adminFinishedMatches || [];
+            const idx = parseInt(document.getElementById('adminMatchSelect').value);
+            if (isNaN(idx) || !finished[idx]) {
+                alert('请选择要撤销的场次');
+                return;
+            }
+            if (!confirm('撤销该场结果并重算赛程分？\n（不会自动回退已生成的下一轮，请自行核对）')) return;
+
+            const m = finished[idx].match;
+            m.winner = null;
+            m.winCount = null;
+            m.loseCount = null;
+            recalcMatchScores();
+            adminLog(`已撤销：${finished[idx].label}`);
+            renderAll();
+        }
+
+        function teamLabel(num) {
+            const t = teamsMap[num];
+            return t ? `${t.name} (${num}号)` : `${num}号`;
+        }
+
+        function createRoundRobinMatches(teamNums, phaseName, countsForScore) {
+            const matches = [];
+            for (let i = 0; i < teamNums.length; i++) {
+                for (let j = i + 1; j < teamNums.length; j++) {
+                    matches.push({
+                        team1: teamNums[i], team2: teamNums[j],
+                        winner: null, winCount: null, loseCount: null,
+                        phase: phaseName, countsForScore
+                    });
                 }
-                // 最小序号选：默认index 0
-                const teamMatchLoser = sortedWinners[matchLoserIndex];
-                // 剩下2个胜者组队对阵
-                sortedWinners.splice(matchLoserIndex, 1);
-                const teamA = sortedWinners[0];
-                const teamB = sortedWinners[1];
-                // 生成两场半决赛BO3
-                allRounds.push({
-                    name: "半决赛 BO3",
-                    type: "半决赛",
-                    matches: [
-                        {
-                            team1: teamMatchLoser,
-                            team2: loserChampion,
-                            winner: null,
-                            type: "半决赛"
-                        },
-                        {
-                            team1: teamA,
-                            team2: teamB,
-                            winner: null,
-                            type: "半决赛"
+            }
+            return matches;
+        }
+
+        function getFinishedMatches(matches) {
+            return matches.filter(m => m.winner !== null);
+        }
+
+        function getPoints(num, matches, countsForScoreOnly) {
+            return matches.filter(m => {
+                if (m.winner !== num) return false;
+                return countsForScoreOnly ? m.countsForScore : !m.countsForScore;
+            }).length;
+        }
+
+        function getHeadToHeadPoints(num, tiedNums, matches, countsForScoreOnly) {
+            return matches.filter(m => {
+                if (m.winner !== num) return false;
+                if (countsForScoreOnly ? !m.countsForScore : m.countsForScore) return false;
+                return tiedNums.includes(m.team1) && tiedNums.includes(m.team2);
+            }).length;
+        }
+
+        function getGameWins(num, tiedNums, matches, countsForScoreOnly) {
+            let wins = 0;
+            matches.forEach(m => {
+                if (countsForScoreOnly ? !m.countsForScore : m.countsForScore) return;
+                if (!tiedNums.includes(m.team1) || !tiedNums.includes(m.team2)) return;
+                if (m.team1 === num) wins += m.winCount || 0;
+                else if (m.team2 === num) wins += m.winCount || 0;
+            });
+            return wins;
+        }
+
+        function groupByEqual(arr, keyFn) {
+            const groups = [];
+            let current = null;
+            arr.forEach(item => {
+                const key = keyFn(item);
+                if (!current || current.key !== key) {
+                    current = { key, items: [item] };
+                    groups.push(current);
+                } else {
+                    current.items.push(item);
+                }
+            });
+            return groups.map(g => g.items);
+        }
+
+        /** 世界杯式排名：积分 → 相互战绩 → 相互小分；仍平返回需加赛队伍 */
+        function rankTeams(teamNums, matches, countsForScoreOnly) {
+            const pool = getFinishedMatches(matches).filter(m =>
+                countsForScoreOnly ? m.countsForScore : !m.countsForScore
+            );
+
+            function resolveList(nums) {
+                if (nums.length <= 1) return { order: nums, tied: [] };
+
+                const stats = nums.map(num => ({
+                    num,
+                    pts: getPoints(num, pool, countsForScoreOnly)
+                }));
+                stats.sort((a, b) => b.pts - a.pts);
+
+                const ptGroups = groupByEqual(stats, s => s.pts);
+                const order = [];
+                let tiedForPlayoff = [];
+
+                for (const ptGroup of ptGroups) {
+                    if (ptGroup.length === 1) {
+                        order.push(ptGroup[0].num);
+                        continue;
+                    }
+                    const tiedNums = ptGroup.map(s => s.num);
+                    const h2h = tiedNums.map(num => ({
+                        num,
+                        h2hPts: getHeadToHeadPoints(num, tiedNums, pool, countsForScoreOnly),
+                        h2hGw: getGameWins(num, tiedNums, pool, countsForScoreOnly)
+                    }));
+                    h2h.sort((a, b) => b.h2hPts - a.h2hPts || b.h2hGw - a.h2hGw);
+
+                    const h2hGroups = groupByEqual(h2h, s => `${s.h2hPts}-${s.h2hGw}`);
+                    let allResolved = true;
+                    for (const hg of h2hGroups) {
+                        if (hg.length === 1) order.push(hg[0].num);
+                        else {
+                            allResolved = false;
+                            tiedForPlayoff.push(...hg.map(x => x.num));
                         }
-                    ]
-                });
-                return true; // 生成完半决赛后直接返回
+                    }
+                    if (!allResolved && h2hGroups.length === 1) {
+                        tiedForPlayoff = tiedNums;
+                    }
+                }
+
+                tiedForPlayoff = [...new Set(tiedForPlayoff)];
+                if (tiedForPlayoff.length > 0) {
+                    return { order: null, tied: tiedForPlayoff };
+                }
+                return { order, tied: [] };
             }
 
-            // ========== 前面常规轮次逻辑不变 ==========
-            // 生成下一轮胜者组对阵
-            const winnerRoundNum = winnerRounds.length;
-            let nextWinnerMatches = [];
-            // 处理轮空：用衍生种子随机选择轮空队伍，保证可复现
-            if (sortedWinners.length % 2 !== 0) {
-                let byeIndex = 0;
-                if (semiMatchMethod === "random") {
-                    // 随机轮空：用衍生种子生成随机索引
-                    const roundSeed = stringToSeed(`${globalSeed}${winnerRoundNum}winner`);
-                    const random = seededRandom(roundSeed);
-                    byeIndex = Math.floor(random() * sortedWinners.length) % sortedWinners.length;
-                }
-                // 序号最小轮空：默认取index 0，因为sortedWinners已经按序号从小到大排序
-                const byeTeam = sortedWinners.splice(byeIndex, 1)[0];
-                // 轮空不计分
-                nextWinnerMatches.push({
-                    team1: byeTeam,
-                    team2: null,
-                    winner: byeTeam,
-                    type: "轮空"
-                });
-            }
-            // 剩下的偶数个队伍两两配对
-            let i = 0;
-            for (; i < sortedWinners.length; i += 2) {
-                nextWinnerMatches.push({
-                    team1: sortedWinners[i],
-                    team2: sortedWinners[i+1],
-                    winner: null,
-                    type: "胜者组"
-                });
-            }
-            // 胜者组轮次名称
-            const winnerRoundName = `胜者组第${winnerRoundNum}轮 ${sortedWinners.length}进${Math.ceil(sortedWinners.length/2)}`;
-            // 添加胜者组下一轮
-            if (nextWinnerMatches.length > 0 || sortedWinners.length > 0) {
-                allRounds.push({
-                    name: winnerRoundName,
-                    type: "胜者组",
-                    matches: nextWinnerMatches
-                });
-            }
-            // 生成下一轮败者组对阵
-            if (nextLoserTeams.length > 0) {
-                const loserRoundNum = loserRounds.length + 1;
-                const nextLoserMatches = [];
-                // 处理轮空：用衍生种子随机选择轮空队伍，保证可复现
-                if (nextLoserTeams.length % 2 !== 0) {
-                    let byeIndex = 0;
-                    if (semiMatchMethod === "random") {
-                        // 随机轮空：用衍生种子生成随机索引
-                        const roundSeed = stringToSeed(`${globalSeed}${loserRoundNum}loser`);
-                        const random = seededRandom(roundSeed);
-                        byeIndex = Math.floor(random() * nextLoserTeams.length) % nextLoserTeams.length;
-                    }
-                    // 序号最小轮空：默认取index 0，因为nextLoserTeams已经按序号从小到大排序
-                    const byeTeam = nextLoserTeams.splice(byeIndex, 1)[0];
-                    // 轮空不计分
-                    nextLoserMatches.push({
-                        team1: byeTeam,
-                        team2: null,
-                        winner: byeTeam,
-                        type: "轮空"
-                    });
-                }
-                // 剩下的偶数个队伍两两配对
-                let j = 0;
-                for (; j < nextLoserTeams.length; j += 2) {
-                    nextLoserMatches.push({
-                        team1: nextLoserTeams[j],
-                        team2: nextLoserTeams[j+1],
-                        winner: null,
-                        type: "败者组"
-                    });
-                }
-                // 败者组轮次名称
-                const loserRoundName = `败者组第${loserRoundNum}轮 ${nextLoserTeams.length}进${Math.ceil(nextLoserTeams.length/2)}`;
-                allRounds.push({
-                    name: loserRoundName,
-                    type: "败者组",
-                    matches: nextLoserMatches
-                });
-            }
-            return true;
+            return resolveList(teamNums);
         }
 
-        // 检查当前所有比赛是不是都已完成
-        function isAllMatchesFinished() {
-            return allRounds.every(round => {
-                return round.matches.every(m => m.winner !== null || m.team2 === null);
+        function createTiebreakRound(teamNums, phaseName) {
+            if (teamNums.length < 2) return [];
+            if (teamNums.length === 2) {
+                return [{
+                    team1: teamNums[0], team2: teamNums[1],
+                    winner: null, winCount: null, loseCount: null,
+                    phase: phaseName, countsForScore: false, isTiebreak: true
+                }];
+            }
+            return createRoundRobinMatches(teamNums, phaseName, false).map(m => ({ ...m, isTiebreak: true }));
+        }
+
+        function allMatchesDone(matches) {
+            return matches.length > 0 && matches.every(m => m.winner !== null);
+        }
+
+        /** 综合常规赛 + 加赛得出完整排名 */
+        function getFullRanking(teamNums, regularMatches, tiebreakRounds) {
+            const regular = getFinishedMatches(regularMatches);
+            const tbPool = tiebreakRounds.flat();
+
+            const stats = teamNums.map(num => ({ num, pts: getPoints(num, regular, true) }));
+            stats.sort((a, b) => b.pts - a.pts);
+            const ptGroups = groupByEqual(stats, s => s.pts);
+            const order = [];
+
+            for (const pg of ptGroups) {
+                if (pg.length === 1) {
+                    order.push(pg[0].num);
+                    continue;
+                }
+                const tiedNums = pg.map(x => x.num);
+                const h2hRank = rankTeams(tiedNums, regular, true);
+                if (h2hRank.order) {
+                    order.push(...h2hRank.order);
+                    continue;
+                }
+                if (tbPool.length === 0 || !allMatchesDone(tbPool)) {
+                    return { pendingTiebreak: true, tied: tiedNums };
+                }
+                const tbRank = rankTeams(tiedNums, tbPool, false);
+                if (tbRank.order) {
+                    order.push(...tbRank.order);
+                } else {
+                    return { pendingTiebreak: true, tied: tbRank.tied.length ? tbRank.tied : tiedNums };
+                }
+            }
+            return { order };
+        }
+
+        function resolveWithTiebreaks(teamNums, regularMatches, tiebreakRounds, phaseName) {
+            const ranking = getFullRanking(teamNums, regularMatches, tiebreakRounds);
+            if (ranking.order) return { order: ranking.order, tiebreakRounds };
+
+            const newRound = createTiebreakRound(ranking.tied, phaseName + '_tb');
+            tiebreakRounds.push(newRound);
+            return { order: null, tiebreakRounds, pendingTiebreak: true };
+        }
+
+        function resolveWithoutScore(teamNums, matches, tiebreakRounds, phaseName) {
+            const tbPool = [...matches, ...tiebreakRounds.flat()];
+            if (!allMatchesDone(matches)) return { winner: null, tiebreakRounds, pendingTiebreak: true };
+
+            for (const tb of tiebreakRounds) {
+                if (!allMatchesDone(tb)) return { winner: null, tiebreakRounds, pendingTiebreak: true };
+            }
+
+            const result = rankTeams(teamNums, tbPool, false);
+            if (result.order) return { winner: result.order[0], tiebreakRounds };
+
+            const newRound = createTiebreakRound(result.tied, phaseName + '_tb');
+            tiebreakRounds.push(newRound);
+            return { winner: null, tiebreakRounds, pendingTiebreak: true };
+        }
+
+        function recordWin(match, winner, wCount, lCount) {
+            if (!match || match.winner !== null) return;
+
+            match.winner = winner;
+            match.winCount = wCount;
+            match.loseCount = lCount;
+
+            if (match.countsForScore) {
+                if (match.phase.startsWith('group')) teamsMap[winner].prelimMatchPts += 1;
+                else if (match.phase === 'final') teamsMap[winner].finalMatchPts += 1;
+            }
+
+            advanceState();
+            renderAll();
+        }
+
+        function groupReady(g) {
+            if (!allMatchesDone(g.matches)) return false;
+            return g.tiebreakRounds.every(tb => allMatchesDone(tb));
+        }
+
+        function advanceState() {
+            if (phase === 'group' || phase === 'playoff' || phase === 'final' || phase === 'complete') {
+                checkGroupComplete();
+            }
+            if (phase === 'playoff' || phase === 'final' || phase === 'complete') {
+                checkPlayoffComplete();
+            }
+            if (phase === 'final' || phase === 'complete') {
+                checkFinalComplete();
+            }
+        }
+
+        function checkGroupComplete() {
+            if (phase !== 'group') return;
+
+            for (const key of GROUP_KEYS) {
+                const g = groups[key];
+                if (g.resolved || !groupReady(g)) continue;
+
+                const res = resolveWithTiebreaks(g.teamNums, g.matches, g.tiebreakRounds, 'group_' + key);
+                g.tiebreakRounds = res.tiebreakRounds;
+                if (res.pendingTiebreak) return;
+
+                g.rankOrder = res.order;
+                g.first = res.order[0];
+                g.second = res.order[1];
+                g.resolved = true;
+            }
+
+            if (GROUP_KEYS.every(k => groups[k].resolved)) {
+                secondPlayoff.teamNums = GROUP_KEYS.map(k => groups[k].second);
+                secondPlayoff.matches = createRoundRobinMatches(secondPlayoff.teamNums, 'playoff', false);
+                secondPlayoff.tiebreakRounds = [];
+                secondPlayoff.winner = null;
+                phase = 'playoff';
+            }
+        }
+
+        function checkPlayoffComplete() {
+            if (phase !== 'playoff') return;
+            if (!allMatchesDone(secondPlayoff.matches)) return;
+            if (!secondPlayoff.tiebreakRounds.every(tb => allMatchesDone(tb))) return;
+
+            const res = resolveWithoutScore(
+                secondPlayoff.teamNums,
+                secondPlayoff.matches,
+                secondPlayoff.tiebreakRounds,
+                'playoff'
+            );
+            secondPlayoff.tiebreakRounds = res.tiebreakRounds;
+            if (res.pendingTiebreak) return;
+
+            secondPlayoff.winner = res.winner;
+            finalStage.teamNums = [groups.A.first, groups.B.first, groups.C.first, res.winner];
+            finalStage.matches = createRoundRobinMatches(finalStage.teamNums, 'final', true);
+            finalStage.tiebreakRounds = [];
+            finalStage.rankOrder = null;
+            phase = 'final';
+        }
+
+        function checkFinalComplete() {
+            if (phase !== 'final') return;
+            if (!allMatchesDone(finalStage.matches)) return;
+            if (!finalStage.tiebreakRounds.every(tb => allMatchesDone(tb))) return;
+
+            const res = resolveWithTiebreaks(
+                finalStage.teamNums,
+                finalStage.matches,
+                finalStage.tiebreakRounds,
+                'final'
+            );
+            finalStage.tiebreakRounds = res.tiebreakRounds;
+            if (res.pendingTiebreak) return;
+
+            finalStage.rankOrder = res.order;
+            phase = 'complete';
+        }
+
+        function renderTeamList() {
+            const el = document.getElementById('teamList');
+            el.innerHTML = '';
+            Object.keys(teamsMap).map(Number).sort((a, b) => a - b).forEach(num => {
+                const t = teamsMap[num];
+                const div = document.createElement('div');
+                div.className = 'p-3 rounded-lg border bg-blue-50 border-blue-200 flex justify-between items-center';
+                div.innerHTML = `
+                    <span class="font-medium">${t.name} <span class="text-gray-500 text-sm">(${num}号 · ${t.group}组)</span></span>
+                    <span class="text-sm whitespace-nowrap ml-2 text-right">
+                        <span class="text-blue-700">预选 ${scoreDetail(t, 'prelim')}</span>
+                        <span class="text-gray-400 mx-1">|</span>
+                        <span class="text-orange-700">决赛 ${scoreDetail(t, 'final')}</span>
+                    </span>`;
+                el.appendChild(div);
             });
         }
 
-        // 渲染所有轮次对阵
-        function renderAllRounds() {
+        function renderMatchCard(match, onWin) {
+            const card = document.createElement('div');
+            card.className = 'match-card bg-white border border-gray-200 rounded-xl shadow-sm p-3';
+            const t1 = teamLabel(match.team1);
+            const t2 = teamLabel(match.team2);
+            const tag = match.isTiebreak ? '<div class="text-xs text-red-600 font-bold mb-1 text-center">加赛（不计分）</div>' : '';
+            const scoreTag = match.countsForScore
+                ? (match.phase === 'final' ? '' : '<div class="text-xs text-gray-500 text-center">计入选积分</div>')
+                : '<div class="text-xs text-gray-500 text-center">不计分</div>';
+
+            if (match.winner !== null) {
+                card.innerHTML = tag + scoreTag + `
+                    <div class="${match.winner === match.team1 ? 'winner-text' : 'loser-text'}">${t1}</div>
+                    <div class="text-center text-gray-400 text-sm my-1">${match.winCount}:${match.loseCount}</div>
+                    <div class="${match.winner === match.team2 ? 'winner-text' : 'loser-text'}">${t2}</div>`;
+                return card;
+            }
+
+            const btns = (n1, n2) => `
+                <button class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-1 rounded" data-w="${n1}" data-wc="2" data-lc="0">${teamLabel(n1)} 2:0</button>
+                <button class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-1 rounded" data-w="${n1}" data-wc="2" data-lc="1">${teamLabel(n1)} 2:1</button>
+                <button class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-1 rounded" data-w="${n2}" data-wc="2" data-lc="1">${teamLabel(n2)} 2:1</button>
+                <button class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-1 rounded" data-w="${n2}" data-wc="2" data-lc="0">${teamLabel(n2)} 2:0</button>`;
+
+            card.innerHTML = tag + scoreTag + `
+                <div>${t1}</div>
+                <div class="text-center text-gray-400 text-sm my-1">BO3</div>
+                <div>${t2}</div>
+                <div class="mt-2 grid grid-cols-2 gap-1">${btns(match.team1, match.team2)}</div>`;
+
+            card.querySelectorAll('button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    onWin(parseInt(btn.dataset.w), parseInt(btn.dataset.wc), parseInt(btn.dataset.lc));
+                });
+            });
+            return card;
+        }
+
+        function renderMatchSection(title, titleClass, matches, tiebreakRounds, handler) {
+            const section = document.createElement('div');
+            section.className = 'bracket-round';
+            section.innerHTML = `<h3 class="text-center font-bold text-lg py-2 px-4 rounded-lg border ${titleClass}">${title}</h3>`;
+            const wrap = document.createElement('div');
+            wrap.className = 'matches-wrapper';
+
+            matches.forEach(m => {
+                wrap.appendChild(renderMatchCard(m, (w, wc, lc) => handler(m, w, wc, lc)));
+            });
+            tiebreakRounds.forEach(round => {
+                round.forEach(m => {
+                    wrap.appendChild(renderMatchCard(m, (w, wc, lc) => handler(m, w, wc, lc)));
+                });
+            });
+
+            section.appendChild(wrap);
+            return section;
+        }
+
+        function renderStandings(title, teamNums, matches, tiebreakRounds, countsForScore) {
+            const div = document.createElement('div');
+            div.className = 'text-sm text-gray-700 mb-2 p-3 bg-gray-50 rounded-lg';
+
+            if (countsForScore) {
+                const ranking = getFullRanking(teamNums, matches, tiebreakRounds);
+                if (ranking.order) {
+                    div.innerHTML = `<strong>${title}：</strong> ` + ranking.order.map((n, i) => {
+                        const pts = getPoints(n, matches, true);
+                        return `${i + 1}. ${teamLabel(n)} (${pts}分)`;
+                    }).join(' · ');
+                } else {
+                    div.innerHTML = `<strong>${title}：</strong> 同分待加赛 → ${ranking.tied.map(teamLabel).join('、')}`;
+                }
+            } else {
+                const all = [...matches, ...tiebreakRounds.flat()];
+                const res = rankTeams(teamNums, all, false);
+                if (res.order) {
+                    div.innerHTML = `<strong>${title}：</strong> ` + res.order.map((n, i) =>
+                        `${i + 1}. ${teamLabel(n)} (${getPoints(n, all, false)}胜)`
+                    ).join(' · ');
+                } else {
+                    div.innerHTML = `<strong>${title}：</strong> 同分待加赛 → ${res.tied.map(teamLabel).join('、')}`;
+                }
+            }
+            return div;
+        }
+
+        function renderAll() {
+            renderTeamList();
             const container = document.getElementById('roundsContainer');
             container.innerHTML = '';
-            allRounds.forEach((round, roundIndex) => {
-                const roundDiv = document.createElement('div');
-                roundDiv.className = 'bracket-round';
-                // 轮次标题配色：普通轮次浅蓝，半决赛浅紫，决赛浅橙
-                let titleClass;
-                if (round.type === "决赛") {
-                    titleClass = "bg-orange-50 border border-orange-200 text-orange-700";
-                } else if (round.name.includes("半决赛")) {
-                    titleClass = "bg-purple-50 border border-purple-200 text-purple-700";
-                } else {
-                    titleClass = "bg-blue-50 border border-blue-200 text-blue-700";
-                }
-                roundDiv.innerHTML = `<h3 class="text-center font-bold text-lg mb-3 sticky top-0 py-2 px-4 z-10 rounded-lg border ${titleClass}">${round.name}</h3><div class="matches-wrapper"></div>`;
-                const matchesContainer = roundDiv.querySelector('.matches-wrapper');
-                round.matches.forEach((match, matchIndex) => {
-                    // 处理轮空的情况
-                    if (match.team2 === null) {
-                        const matchCard = document.createElement('div');
-                        matchCard.className = 'match-card bg-yellow-50 border border-yellow-200 rounded-lg p-4 shadow-sm';
-                        matchCard.innerHTML = `
-                            <div class="text-center font-bold text-yellow-700 mb-2">轮空直接晋级</div>
-                            <div class="text-center text-lg font-medium">${teamsMap[match.team1].name} (${match.team1}号)</div>
-                            <div class="mt-2 text-sm text-center text-green-700 font-bold">自动获得晋级资格</div>
-                        `;
-                        matchesContainer.appendChild(matchCard);
-                        return;
+
+            const labels = {
+                group: '预选赛 · 小组循环',
+                playoff: '预选赛 · 三个小组第2名循环加赛（不计分）',
+                final: '四强循环（决赛积分）',
+                complete: '比赛已全部结束'
+            };
+            document.getElementById('phaseLabel').textContent = labels[phase] || '';
+
+            if (phase === 'group' || phase === 'playoff' || phase === 'final' || phase === 'complete') {
+                GROUP_KEYS.forEach(key => {
+                    const g = groups[key];
+                    const section = document.createElement('div');
+                    section.className = 'mb-4';
+                    section.appendChild(renderStandings(`${key}组`, g.teamNums, g.matches, g.tiebreakRounds, true));
+                    section.appendChild(renderMatchSection(
+                        `${key}组循环赛`,
+                        'bg-blue-50 border-blue-200 text-blue-800',
+                        g.matches,
+                        g.tiebreakRounds,
+                        (match, w, wc, lc) => recordWin(match, w, wc, lc)
+                    ));
+                    if (g.resolved) {
+                        const badge = document.createElement('div');
+                        badge.className = 'text-sm text-green-700 font-bold mt-1';
+                        badge.textContent = `✅ ${key}组：第1 ${teamLabel(g.first)} → 四强 | 第2 ${teamLabel(g.second)} → 加赛区`;
+                        section.appendChild(badge);
                     }
-                    const team1Name = teamsMap[match.team1].name;
-                    const team2Name = teamsMap[match.team2].name;
-                    const isFinished = match.winner !== null;
-                    const matchCard = document.createElement('div');
-                    matchCard.className = `match-card bg-white border border-gray-200 rounded-lg p-4 shadow-sm ${isFinished ? 'opacity-75' : ''}`;
-                    if (!isFinished) {
-                        const isBO3 = round.name.includes("半决赛") || round.type === "决赛";
-                        if (isBO3) {
-                            // BO3比赛：显示比分选项
-                            matchCard.innerHTML = `
-                                <div class="pb-3 border-b border-gray-100">
-                                    <span>${team1Name} (${match.team1}号)</span>
-                                </div>
-                                <div class="py-1 text-center text-gray-400 text-sm vs-text">BO3</div>
-                                <div class="pt-3">
-                                    <span>${team2Name} (${match.team2}号)</span>
-                                </div>
-                                <div class="mt-3 pt-3 border-t border-gray-200 grid grid-cols-2 gap-2">
-                                    <button class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-1 rounded" 
-                                            onclick="handleMatchWin(${roundIndex}, ${matchIndex}, ${match.team1}, 2, 0)">
-                                        ${team1Name} 2:0 胜
-                                    </button>
-                                    <button class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-1 rounded" 
-                                            onclick="handleMatchWin(${roundIndex}, ${matchIndex}, ${match.team1}, 2, 1)">
-                                        ${team1Name} 2:1 胜
-                                    </button>
-                                    <button class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-1 rounded" 
-                                            onclick="handleMatchWin(${roundIndex}, ${matchIndex}, ${match.team2}, 2, 1)">
-                                        ${team2Name} 2:1 胜
-                                    </button>
-                                    <button class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-1 rounded" 
-                                            onclick="handleMatchWin(${roundIndex}, ${matchIndex}, ${match.team2}, 2, 0)">
-                                        ${team2Name} 2:0 胜
-                                    </button>
-                                </div>
-                            `;
-                        } else {
-                            // BO1比赛：原来的胜负按钮
-                            matchCard.innerHTML = `
-                                <div class="pb-3 border-b border-gray-100">
-                                    <span>${team1Name} (${match.team1}号)</span>
-                                </div>
-                                <div class="py-1 text-center text-gray-400 text-sm vs-text">VS</div>
-                                <div class="pt-3">
-                                    <span>${team2Name} (${match.team2}号)</span>
-                                </div>
-                                <div class="mt-3 pt-3 border-t border-gray-200 grid grid-cols-2 gap-2">
-                                    <button class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-2 rounded" 
-                                            onclick="handleMatchWin(${roundIndex}, ${matchIndex}, ${match.team1}, 1, 0)">
-                                        ${team1Name} 胜
-                                    </button>
-                                    <button class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-2 rounded" 
-                                            onclick="handleMatchWin(${roundIndex}, ${matchIndex}, ${match.team2}, 1, 0)">
-                                        ${team2Name} 胜
-                                    </button>
-                                </div>
-                            `;
-                        }
-                    } else {
-                        matchCard.innerHTML = `
-                            <div class="pb-3 border-b border-gray-100">
-                                <span class="${match.winner === match.team1 ? 'winner-text' : 'loser-text'}">${team1Name} (${match.team1}号)</span>
-                            </div>
-                            <div class="py-1 text-center text-gray-400 text-sm vs-text">${match.winCount}:${match.loseCount}</div>
-                            <div class="pt-3">
-                                <span class="${match.winner === match.team2 ? 'winner-text' : 'loser-text'}">${team2Name} (${match.team2}号)</span>
-                            </div>
-                            <div class="mt-3 pt-3 border-t border-gray-200">
-                                <div class="text-sm font-bold text-green-700">胜者：${teamsMap[match.winner].name} (${match.winner}号)</div>
-                            </div>
-                        `;
-                    }
-                    matchesContainer.appendChild(matchCard);
+                    container.appendChild(section);
                 });
-                container.appendChild(roundDiv);
-            });
-            // 更新队伍列表显示积分
-            renderTeamListWithScore();
-        }
+            }
 
-        // 处理比赛胜负
-        function handleMatchWin(roundIndex, matchIndex, winnerNum, winCount, loseCount) {
-            const round = allRounds[roundIndex];
-            const match = round.matches[matchIndex];
-            if (match.winner !== null || match.team2 === null) return; // 已经结束或轮空的比赛不能改
-            match.winner = winnerNum;
-            match.winCount = winCount;
-            match.loseCount = loseCount;
-            const loserNum = match.team1 === winnerNum ? match.team2 : match.team1;
-            // 计算积分
-            const roundType = round.type;
-            const isSemiFinal = round.type === "半决赛";
-            const isFinal = round.type === "决赛";
-            if (isFinal) {
-                // 决赛BO3：每赢一场+3分，每输一场+2分，打了winCount+loseCount场，胜者赢winCount输loseCount，败者赢loseCount输winCount
-                teamsMap[winnerNum].score += winCount * 3 + loseCount * 2;
-                teamsMap[loserNum].score += loseCount * 3 + winCount * 2;
-                teamsMap[loserNum].eliminated = true;
-            } else if (isSemiFinal) {
-                // 半决赛BO3：每赢一场+2分，每输一场+1分，胜者赢winCount输loseCount，败者赢loseCount输winCount
-                teamsMap[winnerNum].score += winCount * 2 + loseCount * 1;
-                teamsMap[loserNum].score += loseCount * 2 + winCount * 1;
-                teamsMap[loserNum].eliminated = true;
+            if (phase === 'playoff' || phase === 'final' || phase === 'complete') {
+                const ps = document.createElement('div');
+                ps.className = 'mb-4';
+                ps.appendChild(renderStandings('小组第2加赛', secondPlayoff.teamNums, secondPlayoff.matches, secondPlayoff.tiebreakRounds, false));
+                ps.appendChild(renderMatchSection(
+                    '三个小组第2名循环加赛',
+                    'bg-yellow-50 border-yellow-200 text-yellow-800',
+                    secondPlayoff.matches,
+                    secondPlayoff.tiebreakRounds,
+                    (match, w, wc, lc) => recordWin(match, w, wc, lc)
+                ));
+                if (secondPlayoff.winner) {
+                    const b = document.createElement('div');
+                    b.className = 'text-sm text-green-700 font-bold';
+                    b.textContent = `✅ 加赛胜者 ${teamLabel(secondPlayoff.winner)} → 四强`;
+                    ps.appendChild(b);
+                }
+                container.appendChild(ps);
+            }
+
+            if (phase === 'final' || phase === 'complete') {
+                const fs = document.createElement('div');
+                fs.className = 'mb-4';
+                fs.appendChild(renderStandings('四强循环', finalStage.teamNums, finalStage.matches, finalStage.tiebreakRounds, true));
+                fs.appendChild(renderMatchSection(
+                    '四强循环赛 BO3',
+                    'bg-purple-50 border-purple-200 text-purple-800',
+                    finalStage.matches,
+                    finalStage.tiebreakRounds,
+                    (match, w, wc, lc) => recordWin(match, w, wc, lc)
+                ));
+                container.appendChild(fs);
+            }
+
+            if (phase === 'complete') {
+                const rankEl = document.getElementById('finalRankList');
+                rankEl.innerHTML = '';
+                const medals = ['🥇', '🥈', '🥉', '4️⃣'];
+                finalStage.rankOrder.forEach((num, i) => {
+                    const t = teamsMap[num];
+                    rankEl.innerHTML += `
+                        <div class="bg-white rounded-xl shadow p-4">
+                            <div class="text-2xl">${medals[i]} 第${i + 1}名</div>
+                            <div class="text-xl font-bold">${t.name}</div>
+                            <div class="text-sm text-gray-600">决赛 ${displayFinal(t)} · 预选 ${displayPrelim(t)}（兑奖，含补偿分）</div>
+                        </div>`;
+                });
+                document.getElementById('finalRankSection').classList.remove('hidden');
             } else {
-                // 常规轮次
-                if (roundType === "胜者组" || roundType === "首轮") {
-                    teamsMap[winnerNum].score += 3;
-                    teamsMap[loserNum].score += 1;
-                    loserPool.push(loserNum); // 败者掉入败者池
-                    teamsMap[loserNum].eliminated = false;
-                } else {
-                    teamsMap[winnerNum].score += 2;
-                    teamsMap[loserNum].eliminated = true; // 败者组败者直接淘汰
-                }
+                document.getElementById('finalRankSection').classList.add('hidden');
             }
-
-            // 检查是否所有比赛都已完成，如果完成则生成下一轮并重新渲染
-            const allFinished = isAllMatchesFinished();
-            if (allFinished) {
-                const hasNextRound = generateNextRound();
-                if (!hasNextRound) {
-                    // 没有下一轮了，直接渲染即可（已经到决赛打完）
-                    renderAllRounds();
-                    return;
-                }
-            }
-
-            // 重新渲染
-            renderAllRounds();
+            renderAdminPanel();
         }
 
-        // 生成对阵
-        function generateBracket(seed) {
-            // 生成随机种子，如果为空则用当前时间戳
+        function generateTournament(seed) {
             if (!seed.trim()) {
-                seed = Date.now().toString() + Math.random().toString(36).substring(2, 8);
+                seed = Date.now().toString() + Math.random().toString(36).slice(2, 8);
                 document.getElementById('hashSeed').value = seed;
             }
-            const numericSeed = stringToSeed(seed);
-            globalSeed = numericSeed; // 保存全局初始种子，用于后续衍生种子生成
-            // 保存对阵规则并禁用选项
-            semiMatchMethod = document.querySelector('input[name="semiMatchMethod"]:checked').value;
-            document.querySelectorAll('input[name="semiMatchMethod"]').forEach(el => el.disabled = true);
-            tournamentStarted = true;
-            // 生成1-24的数字数组，并用Fisher-Yates洗牌打乱，可复现
-            const numbers = Array.from({length:24}, (_,i)=>i+1);
-            const shuffledNums = shuffleArray(numbers, numericSeed);
-            // 编号和队伍对应：1号对应shuffledNums[0]的队伍，以此类推
-            const result = teams.map((team, idx) => ({
-                num: shuffledNums[idx],
-                team: team
-            })).sort((a,b) => a.num - b.num); // 按编号从小到大排序
-            // 初始化队伍映射
+            globalSeed = stringToSeed(seed);
+
+            const nums = shuffleArray(Array.from({ length: 12 }, (_, i) => i + 1), globalSeed);
             teamsMap = {};
-            result.forEach(item => {
-                teamsMap[item.num] = {
-                    name: item.team,
-                    score: 0,
-                    eliminated: false
+            nums.forEach((num, idx) => {
+                teamsMap[num] = {
+                    name: TEAM_NAMES[idx],
+                    prelimMatchPts: 0,
+                    finalMatchPts: 0,
+                    prelimBonus: 0,
+                    finalBonus: 0,
+                    group: GROUP_KEYS[Math.floor(idx / 4)]
                 };
             });
-            // 渲染编号对应列表
-            const numContainer = document.getElementById('numList');
-            numContainer.innerHTML = '';
-            result.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'p-4 bg-blue-50 rounded-lg border border-blue-200 flex justify-between items-center';
-                div.innerHTML = `<span class="text-xl font-bold text-blue-700 w-10 text-right">${item.num}</span><span class="font-medium text-gray-800">${item.team}</span>`;
-                numContainer.appendChild(div);
+
+            groups = {};
+            GROUP_KEYS.forEach((key, gi) => {
+                const teamNums = nums.slice(gi * 4, gi * 4 + 4).sort((a, b) => a - b);
+                groups[key] = {
+                    teamNums,
+                    matches: createRoundRobinMatches(teamNums, 'group_' + key, true),
+                    tiebreakRounds: [],
+                    resolved: false,
+                    first: null,
+                    second: null,
+                    rankOrder: null
+                };
             });
-            // 生成首轮对阵：1v2,3v4...23v24
-            const firstRoundMatches = [];
-            for (let i = 1; i <= 24; i += 2) {
-                firstRoundMatches.push({
-                    team1: i,
-                    team2: i+1,
-                    winner: null,
-                    type: "首轮"
-                });
-            }
-            allRounds = [{
-                name: "第一轮 24进12",
-                type: "首轮",
-                matches: firstRoundMatches
-            }];
-            loserPool = []; // 清空败者池
-            // 渲染对阵
-            renderAllRounds();
-            // 显示对阵区域和结果区
-            document.getElementById('resultSection').classList.remove('hidden');
+
+            secondPlayoff = { teamNums: [], matches: [], tiebreakRounds: [], winner: null };
+            finalStage = { teamNums: [], matches: [], tiebreakRounds: [], rankOrder: null };
+            phase = 'group';
+
             document.getElementById('teamListSection').classList.remove('hidden');
             document.getElementById('tournamentSection').classList.remove('hidden');
-            document.getElementById('finalChampionSection').classList.add('hidden');
+            document.getElementById('adminSection').classList.remove('hidden');
+            renderAll();
         }
 
-        // 生成按钮点击事件
+        function bindAdminEvents() {
+            document.getElementById('adminTeamSelect').addEventListener('change', syncAdminBonusInputs);
+            document.getElementById('adminApplyBonusBtn').addEventListener('click', applyBonusToSelected);
+            document.getElementById('adminPrelimPlus1').addEventListener('click', () => adjustBonus(1, 0));
+            document.getElementById('adminPrelimMinus1').addEventListener('click', () => adjustBonus(-1, 0));
+            document.getElementById('adminFinalPlus1').addEventListener('click', () => adjustBonus(0, 1));
+            document.getElementById('adminFinalMinus1').addEventListener('click', () => adjustBonus(0, -1));
+            document.getElementById('adminUndoMatchBtn').addEventListener('click', undoSelectedMatch);
+            document.getElementById('adminRecalcBtn').addEventListener('click', () => {
+                recalcMatchScores();
+                adminLog('已根据全部比赛记录重算赛程分（补偿分未动）');
+                renderAll();
+            });
+            document.getElementById('adminClearBonusBtn').addEventListener('click', clearAllBonus);
+        }
+
         document.getElementById('generateBtn').addEventListener('click', () => {
-            const seed = document.getElementById('hashSeed').value;
-            generateBracket(seed);
+            generateTournament(document.getElementById('hashSeed').value);
         });
-
-        // 回车键生成
-        document.getElementById('hashSeed').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                drawBtn.click();
-            }
+        document.getElementById('hashSeed').addEventListener('keypress', e => {
+            if (e.key === 'Enter') document.getElementById('generateBtn').click();
         });
-
-        // 页面加载自动生成随机种子
         window.addEventListener('load', () => {
-            const randomSeed = Date.now().toString() + Math.random().toString(36).substring(2, 8);
-            document.getElementById('hashSeed').value = randomSeed;
+            document.getElementById('hashSeed').value = Date.now().toString() + Math.random().toString(36).slice(2, 8);
+            renderRosterStatic();
+            bindAdminEvents();
         });
     </script>
 </body>
